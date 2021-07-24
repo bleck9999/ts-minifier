@@ -10,21 +10,29 @@ def minify(script: str):
     part = 0
     while part < len(strings):
         # done: clear all comments that don't have a REQUIRE
-        # TODO: strip whitespace
-        # shrink user defined names
-        for line in strings[part].split(sep='\n'):
-            if '#' in line:
-                if "REQUIRE" in line:
-                    minified += line + '\n'  # leave REQUIREs unmodified
-                    # comments are terminated by a newline so we need to add one back in
+        # done: strip whitespace
+        # TODO: shrink user defined names
+
+        # in theory all the even numbered indexes should be outside quotes, so we ignore any parts with an odd index
+        if part % 2 == 1:
+            minified += f'"{strings[part]}"'
+
+        else:
+            for line in strings[part].split(sep='\n'):
+                if '#' in line:
+                    if "REQUIRE" in line:
+                        minified += line + '\n'  # leave REQUIREs unmodified
+                        # comments are terminated by a newline so we need to add one back in
+                    else:
+                        # the comment is just a comment and can be ignored
+                        pass
                 else:
-                    # the comment is just a comment and can be ignored
-                    pass
+                    line = line.replace(' ', '').replace('\t', '')  # newlines should already be taken care of
 
 
 
-        # in theory all the even numbered indexes should be outside quotes, so we can ignore any parts with an odd index
-        part += 2
+        part += 1
+
     return minified
 
 
