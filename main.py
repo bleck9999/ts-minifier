@@ -5,14 +5,27 @@ def minify(script: str):
     # currently ts does not seem to allow ''
     # (https://github.com/suchmememanyskill/TegraExplorer/blob/tsv3/source/script/parser.c#L173)
     # im fine with that, it makes doing this a lot easier
+    minified = ""
     strings = script.split(sep='"')
     part = 0
     while part < len(strings):
+        # done: clear all comments that don't have a REQUIRE
+        # TODO: strip whitespace
+        # shrink user defined names
+        for line in strings[part].split(sep='\n'):
+            if '#' in line:
+                if "REQUIRE" in line:
+                    minified += line + '\n'  # leave REQUIREs unmodified
+                    # comments are terminated by a newline so we need to add one back in
+                else:
+                    # the comment is just a comment and can be ignored
+                    pass
+
 
 
         # in theory all the even numbered indexes should be outside quotes, so we can ignore any parts with an odd index
         part += 2
-
+    return minified
 
 
 if __name__ == '__main__':
