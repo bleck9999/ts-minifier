@@ -27,9 +27,26 @@ def minify(script: str):
                         # the comment is just a comment and can be ignored
                         pass
                 else:
-                    line = line.replace(' ', '').replace('\t', '')  # newlines should already be taken care of
-
-
+                    line = line.replace('\t', '')
+                    # tsv3 is still an absolute nightmare
+                    # so spaces have a couple edge cases
+                    # 1. the - operator which requires space between the right operand
+                    # yeah that's right only the right one
+                    # thanks meme
+                    # 2. between 2 letters
+                    index = 0
+                    newline = list(line)
+                    while index < (len(line)-4):
+                        sec = line[index:index+3]
+                        if sec[1] == ' ':
+                            if sec[0].isalpha() and sec[2].isalpha():
+                                pass
+                            elif sec[0] == '-' and sec[2].isnumeric():
+                                pass
+                            else:
+                                newline[index+1] = ''
+                        index += 1
+                    minified += ''.join(newline)
 
         part += 1
 
