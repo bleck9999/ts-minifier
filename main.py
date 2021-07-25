@@ -1,13 +1,15 @@
 import argparse
 
+# if is not included because it's already 2 characters
 stdlib_funcs = ['while', 'print', 'println', 'mountsys', 'mountemu', 'readsave', 'exit', 'break', 'dict',
-                'setpixel', 'readdir', 'filecopy', 'mkdir', 'memory', 'ncatype', 'pause', 'color', 'menu',
-                'emu', 'clear', 'timer', 'deldir', 'fsexists', 'delfile']  # if is not included on purpose
+                'setpixel', 'readdir', 'copyfile', 'mkdir', 'memory', 'ncatype', 'pause', 'color', 'menu',
+                'emu', 'clear', 'timer', 'deldir', 'fsexists', 'delfile', "copydir", "movefile", "payload",
+                "readfile", "writefile"]
 sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'mountemu': "_e", 'readsave': "_r",
-             'exit': "_q", 'break': "_b", 'dict': "_d", 'setpixel': "_y", 'readdir': "_i", 'filecopy': "_c",
-             'mkdir': "_k",
-             'memory': "_m", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u", 'clear': "_x",
-             'timer': "_t", 'deldir': "_g", 'fsexists': "_f", 'delfile': "_z"}
+             'exit': "_q", 'break': "_b", 'dict': "_d", 'setpixel': "_y", 'readdir': "_i", 'copyfile': "_c",
+             'mkdir': "_k", 'memory': "_m", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u",
+             'clear': "_x", 'timer': "_t", 'deldir': "_g", 'fsexists': "_f", 'delfile': "_z", "copydir": "c_",
+             "movefile": "_v", "payload": "_j", "readfile": "_o", "writefile": "w_"}
 replace_functions = True
 
 
