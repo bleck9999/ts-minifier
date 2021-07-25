@@ -1,4 +1,4 @@
-takes tsv3 scripts and makes them smaller
+takes tsv3 scripts and makes them smaller  
 mainly useful for embedding them at compile time into te
 
 ```
