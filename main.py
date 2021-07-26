@@ -9,6 +9,13 @@ sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'm
 replace_functions = True
 
 
+def isidentifier(s: str):
+    for c in s.lower():
+        if (ord(c) < 97 or ord(c) > 122) and (ord(c) != 95):
+            return False
+    return True
+
+
 def minify(script: str):
     # currently ts does not seem to allow 's to mark a quote
     # (https://github.com/suchmememanyskill/TegraExplorer/blob/tsv3/source/script/parser.c#L173)
@@ -64,7 +71,7 @@ def minify(script: str):
         elif inquote and sec[1] == '"':
             inquote = False
         if (sec[1] == ' ') and not inquote:
-            if sec[0].isalpha() and sec[2].isalpha():
+            if isidentifier(sec[0]) and isidentifier(sec[2]):
                 pass
             elif sec[0] == '-' and sec[2].isnumeric():
                 pass
