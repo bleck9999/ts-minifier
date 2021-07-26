@@ -124,6 +124,6 @@ if __name__ == '__main__':
         print(f"Minifying {file}")
         with open(file, 'r') as f:
             r = minify(f.read())
-        file = file.split(sep='.')[0]
+        file = file.split(sep='.')[0].split(sep='/')[-1]
         f = open(f"{dest}/{file}_min.te", 'w')
         f.write(r)
