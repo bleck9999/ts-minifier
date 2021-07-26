@@ -1,10 +1,6 @@
 import argparse
 
 # if is not included because it's already 2 characters
-stdlib_funcs = ['while', 'print', 'println', 'mountsys', 'mountemu', 'readsave', 'exit', 'break', 'dict',
-                'setpixel', 'readdir', 'copyfile', 'mkdir', 'memory', 'ncatype', 'pause', 'color', 'menu',
-                'emu', 'clear', 'timer', 'deldir', 'fsexists', 'delfile', "copydir", "movefile", "payload",
-                "readfile", "writefile"]
 sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'mountemu': "_e", 'readsave': "_r",
              'exit': "_q", 'break': "_b", 'dict': "_d", 'setpixel': "_y", 'readdir': "_i", 'copyfile': "_c",
              'mkdir': "_k", 'memory': "_m", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u",
@@ -22,7 +18,7 @@ def minify(script: str):
     part = 0
     requires = ""
     mcode = ""
-    stl_counts = {}.fromkeys(stdlib_funcs, 0)
+    stl_counts = {}.fromkeys(sub_funcs, 0)
     while part < len(strings):
         # maybe in future it'll shrink user defined names
         # dont hold out hope for that because `a.files.foreach("b") {println(b)}` is valid syntax
@@ -38,14 +34,14 @@ def minify(script: str):
         else:
             for line in strings[part].split(sep='\n'):
                 if '#' in line:
-                    if "REQUIRE" in line:
+                    if "REQUIRE " in line:
                         requires += line + '\n'  # leave REQUIREs unmodified
                         # comments are terminated by a newline so we need to add one back in
                     else:
                         # the comment is just a comment and can be ignored
                         pass
                 else:
-                    for s in stdlib_funcs:
+                    for s in sub_funcs:
                         stl_counts[s] += line.count(f'{s}(')
                     mcode += line.replace('\t', '') + ' '
 
@@ -77,7 +73,7 @@ def minify(script: str):
         index += 1
     mmcode += ''.join(newline).strip()
 
-    for func in stdlib_funcs:
+    for func in sub_funcs:
         # space saved here is given by n * (len(func) - len(min_func)) - (len(min_func)+1 + len(func))
         # as such with one usage space is always lost (len(func)-2 is never > len(func)+3) so dont even try
         if stl_counts[func] >= 2:
@@ -95,13 +91,17 @@ def minify(script: str):
 
     for string, count in str_reuse.items():
         if count >= 2:
+            # we can't auto replace strings without a full parser
+            # unlike with the stdlib functions we cant make a lookup table ahead of time
+            # and generating shorter names on the fly sounds like an absolute nightmare no thanks
             print(f'Warning: string "{string}" of len {len(string)} reused {count} times')
 
     return requires + mmcode.strip()
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Minify tsv3 scripts, useful for embedding")
+    parser = argparse.ArgumentParser(description="Minify tsv3 scripts, useful for embedding",
+                                     formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("source", type=str, nargs='+', help="source files to minify")
     parser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
                                                         "\ndefault: ./", default='./')
