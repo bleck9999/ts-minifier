@@ -18,6 +18,7 @@ def minify(script: str):
     # (https://github.com/suchmememanyskill/TegraExplorer/blob/tsv3/source/script/parser.c#L173)
     # im fine with that, it makes doing this a lot easier
     strings = script.split(sep='"')
+    str_reuse = {}
     part = 0
     requires = ""
     mcode = ""
@@ -29,6 +30,10 @@ def minify(script: str):
 
         # in theory all the even numbered indexes should be outside quotes, so we ignore any parts with an odd index
         if part % 2 == 1:
+            if strings[part] not in str_reuse:
+                str_reuse[strings[part]] = 0
+            else:
+                str_reuse[strings[part]] += 1
             mcode += f'"{strings[part]}"'
         else:
             for line in strings[part].split(sep='\n'):
@@ -77,7 +82,7 @@ def minify(script: str):
         # as such with one usage space is always lost (len(func)-2 is never > len(func)+3) so dont even try
         if stl_counts[func] >= 2:
             savings = stl_counts[func] * (len(func) - 2) - (len(func) + 3)
-            print(f"Replacing all {stl_counts[func]} usages of {func} would save {savings}bytes")
+            print(f"Replacing all {stl_counts[func]} usages of {func} would save {savings}byte{'s' if savings != 1 else ''}")
             if (savings < 0) or not replace_functions:
                 print("Savings negative or automatic replacement disabled, continuing")
                 continue
@@ -87,6 +92,10 @@ def minify(script: str):
             mmcode = mmcode.replace(f"{func}(", f"{func_min}(")  # this will replace inside strings as well deal with it
             mmcode = f"{func_min}={func}\n" + mmcode
             # a space isn't any shorter than \n so why not use \n
+
+    for string, count in str_reuse.items():
+        if count >= 2:
+            print(f'Warning: string "{string}" of len {len(string)} reused {count} times')
 
     return requires + mmcode.strip()
 
