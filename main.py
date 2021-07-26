@@ -1,4 +1,5 @@
 import argparse
+import re
 
 # if is not included because it's already 2 characters
 sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'mountemu': "_e", 'readsave': "_r",
@@ -16,43 +17,77 @@ def wantsumspace(s: str):
     return True
 
 
+def commentstartswhere(s: str):
+    quoted = False
+    for c in range(len(s)):
+        if s[c] == '"':
+            quoted = not quoted
+        if s[c] == '#' and not quoted:
+            return c
+    return None
+
+
 def minify(script: str):
     # currently ts does not seem to allow 's to mark a quote
     # (https://github.com/suchmememanyskill/TegraExplorer/blob/tsv3/source/script/parser.c#L173)
     # im fine with that, it makes doing this a lot easier
-    strings = script.split(sep='"')
+    # strings = script.split(sep='"')
     str_reuse = {}
-    part = 0
     requires = ""
     mcode = ""
     stl_counts = {}.fromkeys(sub_funcs, 0)
-    while part < len(strings):
+    # while part < len(strings):
+    for line in script.split(sep='\n'):
         # maybe in future it'll shrink user defined names
         # dont hold out hope for that because `a.files.foreach("b") {println(b)}` is valid syntax
         # and i dont have the skill or patience to deal with that
 
-        # in theory all the even numbered indexes should be outside quotes, so we ignore any parts with an odd index
-        if part % 2 == 1:
-            if strings[part] not in str_reuse:
-                str_reuse[strings[part]] = 0
-            else:
-                str_reuse[strings[part]] += 1
-            mcode += f'"{strings[part]}"'
-        else:
-            for line in strings[part].split(sep='\n'):
-                if '#' in line:
-                    if "REQUIRE " in line:
-                        requires += line + '\n'  # leave REQUIREs unmodified
-                        # comments are terminated by a newline so we need to add one back in
-                    else:
-                        # the comment is just a comment and can be ignored
-                        pass
-                else:
-                    for s in sub_funcs:
-                        stl_counts[s] += line.count(f'{s}(')
-                    mcode += line.replace('\t', '') + ' '
+        # # in theory all the even numbered indexes should be outside quotes, so we ignore any parts with an odd index
+        # if part % 2 == 1:
+        #     if strings[part] not in str_reuse:
+        #         str_reuse[strings[part]] = 0
+        #     else:
+        #         str_reuse[strings[part]] += 1
+        #     mcode += f'"{strings[part]}"'
+        start = commentstartswhere(line)
+        if start is None:
+            start = -1
 
-        part += 1
+        if "REQUIRE " in line[start:]:
+            requires += line[start:] + '\n'  # leave REQUIREs unmodified
+            # comments are terminated by a newline so we need to add one back in
+
+        # *deep breath*
+        # slicing is exclusive on the right side of the colon so the "no comment" value of start=-1 would cut off
+        # the last character of the line which would lead to several issues
+        # however this is desirable when there *is* a comment, since it being exclusive means there isn't a trailing #
+        # and if you're wondering about the above check that uses line[start:] this doesn't matter,
+        # one character cant contain an 8 character substring
+        if start != -1:
+            line = line[:start]
+        line = line.split(sep='"')
+
+        if len(line) % 2 == 0:
+            print("You appear to have string literals spanning multiple lines. Please seek professional help")
+            raise Exception("Too much hatred")
+        part = 0
+        while part < len(line):
+            # all the odd numbered indexes should be inside quotes
+            if part % 2 == 0:
+                if not line[part]:
+                    break
+                for s in sub_funcs:
+                    stl_counts[s] += len(re.findall("(?<!\\.)%s\\(" % s, line[part]))
+                mcode += line[part].replace('\t', '') + ' '
+            else:
+                if line[part] not in str_reuse:
+                    str_reuse[line[part]] = 0
+                else:
+                    str_reuse[line[part]] += 1
+                mcode += f'"{line[part]}"'
+
+            part += 1
+
 
     # tsv3 is still an absolute nightmare
     # so spaces have a couple edge cases
@@ -92,8 +127,20 @@ def minify(script: str):
             func_min = sub_funcs[func]  # now here we have to assume nobody is using any of our substitute vars
             # should be a pretty safe assumption but knowing for sure would require about the same amount of effort
             # as it would to replace all user defined variables
-            mmcode = mmcode.replace(f"{func}(", f"{func_min}(")  # this will replace inside strings as well deal with it
-            mmcode = f"{func_min}={func}\n" + mmcode
+            ucode = ""  # this is rather hacky
+            sections = [0]
+            for m in re.finditer(r"(?<!\.)%s\(" % func, mmcode):
+                sections.append(m.span()[0])
+                sections.append(m.span()[1])
+            sections.append(len(mmcode))
+            i = 2       # change rather to very
+            while i < len(sections):
+                ucode += mmcode[sections[i-2]:sections[i-1]] + func_min + '('
+                i += 2
+            ucode += mmcode[sections[i-2]:]
+
+            ucode = f"{func_min}={func}\n" + ucode
+            mmcode = ucode
             # a space isn't any shorter than \n so why not use \n
 
     for string, count in str_reuse.items():
