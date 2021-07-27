@@ -7,7 +7,8 @@ sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'm
              'mkdir': "_k", 'memory': "_m", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u",
              'clear': "_x", 'timer': "_t", 'deldir': "_g", 'fsexists': "_f", 'delfile': "_z", "copydir": "c_",
              "movefile": "_v", "payload": "_j", "readfile": "_o", "writefile": "w_", "setpixels": "y_", "printpos": "p_",
-             "emmcread": "e_", "emmcwrite": "f_", "emummcread": "r_", "emummcwrite": "s_"}
+             "emmcread": "e_", "emmcwrite": "f_", "emummcread": "r_", "emummcwrite": "s_", "escapepath": "x_",
+             "combinepath": "a_"}
 replace_functions = False
 
 
