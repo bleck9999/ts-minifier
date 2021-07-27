@@ -7,7 +7,7 @@ sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'm
              'mkdir': "_k", 'memory': "_m", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u",
              'clear': "_x", 'timer': "_t", 'deldir': "_g", 'fsexists': "_f", 'delfile': "_z", "copydir": "c_",
              "movefile": "_v", "payload": "_j", "readfile": "_o", "writefile": "w_"}
-replace_functions = True
+replace_functions = False
 
 
 def wantsumspace(s: str):
@@ -159,13 +159,13 @@ if __name__ == '__main__':
     parser.add_argument("source", type=str, nargs='+', help="source files to minify")
     parser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
                                                         "\ndefault: ./", default='./')
-    parser.add_argument("--replace-functions", action=argparse.BooleanOptionalAction,
-                        help="if false, warn if functions are reused instead of replacing them\ndefault: true")
+    parser.add_argument("--replace-functions", action="store_true", default=False,
+                        help="automatically replace reused functions instead of just warning\ndefault: false")
 
     args = parser.parse_args()
     files = args.source
     dest = args.d[:-1] if args.d[-1] == '/' else args.d
-    replace_functions = args.replace_functions if args.replace_functions is not None else True
+    replace_functions = args.replace_functions if args.replace_functions is not None else False
 
     for file in files:
         print(f"Minifying {file}")

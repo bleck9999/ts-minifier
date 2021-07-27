@@ -7,16 +7,15 @@ currently the optimisations performed are:
 - detecting reused string literals
 - detecting (or automatically replacing) reused stdlib functions
 ```
-usage: main.py [-h] [-d [D]] [--replace-functions | --no-replace-functions] source [source ...]
+usage: main.py [-h] [-d [D]] [--replace-functions] source [source ...]
 
 positional arguments:
-  source                source files to minify
+  source               source files to minify
 
 optional arguments:
-  -h, --help            show this help message and exit
-  -d [D]                destination folder for minified scripts
-                        default: ./
-  --replace-functions, --no-replace-functions
-                        if false, warn if functions are reused instead of replacing them
-                        default: true
+  -h, --help           show this help message and exit
+  -d [D]               destination folder for minified scripts
+                       default: ./
+  --replace-functions  automatically replace reused functions instead of just warning
+                       default: false
 ```
