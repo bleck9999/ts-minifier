@@ -174,5 +174,8 @@ if __name__ == '__main__':
         with open(file, 'r') as f:
             r = minify(f.read())
         file = file.split(sep='.')[0].split(sep='/')[-1]
-        f = open(f"{dest}/{file}_min.te", 'w')
+        if dest != '.':
+            f = open(f"{dest}/{file}.te", 'w')
+        else:
+            f = open(f"{dest}/{file}_min.te", 'w')
         f.write(r)
