@@ -12,14 +12,14 @@ sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'm
 replace_functions = False
 
 
-def wantsumspace(s: str):
-    for c in s.lower():
-        if (ord(c) < 97 or ord(c) > 122) and (ord(c) != 95) and not (c.isnumeric()):
+def isidentifier(s: str):
+    for c in s:
+        if not ((ord(c) >= 97) and (ord(c) <= 122)) or (ord(c) == 95):
             return False
     return True
 
 
-def commentstartswhere(s: str):
+def hascomment(s: str):
     quoted = False
     for c in range(len(s)):
         if s[c] == '"':
@@ -28,6 +28,56 @@ def commentstartswhere(s: str):
             return c
     return None
 
+
+def parser(script: str):
+    # step 1: separate comments
+    # step 2: separate strings
+    # step 3: actually parse and shit
+    comments = []  # [(start, end, content)]
+    strings = []
+    commented = False
+    quoted = False
+    strstart = -1
+    commentstart = -1
+    for c in range(len(script)):
+        if script[c] == '#' and not quoted:
+            commented = True
+            commentstart = c
+        elif (script[c] == '\n' and not quoted) and commented:
+            comments.append((commentstart, c+1, script[commentstart:c+1]))
+            commented = False
+        elif script[c] == '"' and not commented:
+            if not quoted:
+                strstart = c
+                quoted = True
+            else:
+                strings.append((strstart, c+1, script[strstart:c+1]))
+                quoted = False
+
+    bounds = []
+    counter = 0
+    strings_comments = strings + comments
+    for val in sorted(strings_comments):
+        if counter and (bounds[counter-1] == val[0]):
+            bounds[counter-1] = val[1]
+        else:
+            bounds += [val[0], val[1]]
+            counter += 2
+    bounds.append(len(script))
+    code = []
+    i = 2
+    while i < len(bounds):
+        code.append(script[bounds[i - 1]:bounds[i]])
+        i += 2
+
+    # a note on the ordering of things
+    # we have two important lists, code and strings_comments
+    # reconstructing them is fairly simple:
+    # code[n]
+    # strings_comments[n][2]
+    # #                   ^ note this [2], this is because code is a list of str and not tuple(int, int, str)
+    # code[n+1]
+    # etc.
 
 def minify(script: str):
     # currently ts does not seem to allow 's to mark a quote
@@ -51,7 +101,7 @@ def minify(script: str):
         #     else:
         #         str_reuse[strings[part]] += 1
         #     mcode += f'"{strings[part]}"'
-        start = commentstartswhere(line)
+        start = hascomment(line)
         if start is None:
             start = -1
 
@@ -156,15 +206,15 @@ def minify(script: str):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Minify tsv3 scripts, useful for embedding",
-                                     formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("source", type=str, nargs='+', help="source files to minify")
-    parser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
+    argparser = argparse.ArgumentParser(description="Minify tsv3 scripts, useful for embedding",
+                                        formatter_class=argparse.RawTextHelpFormatter)
+    argparser.add_argument("source", type=str, nargs='+', help="source files to minify")
+    argparser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
                                                         "\ndefault: ./", default='./')
-    parser.add_argument("--replace-functions", action="store_true", default=False,
-                        help="automatically replace reused functions instead of just warning\ndefault: false")
+    argparser.add_argument("--replace-functions", action="store_true", default=False,
+                           help="automatically replace reused functions instead of just warning\ndefault: false")
 
-    args = parser.parse_args()
+    args = argparser.parse_args()
     files = args.source
     dest = args.d[:-1] if args.d[-1] == '/' else args.d
     replace_functions = args.replace_functions if args.replace_functions is not None else False
@@ -172,7 +222,7 @@ if __name__ == '__main__':
     for file in files:
         print(f"Minifying {file}")
         with open(file, 'r') as f:
-            r = minify(f.read())
+            r = parser(f.read())
         file = file.split(sep='.')[0].split(sep='/')[-1]
         if dest != '.':
             f = open(f"{dest}/{file}.te", 'w')
