@@ -7,9 +7,9 @@ auto_replace = False
 
 class Code:
     def __init__(self, strings, comments, script):
-        bounds = []
         counter = 0
         strings_comments = sorted(strings + comments)
+        bounds = [0] if strings_comments[0][0] != 0 else []
         for val in strings_comments:
             if counter and (bounds[counter - 1] == val[0]):
                 bounds[counter - 1] = val[1]
@@ -18,7 +18,7 @@ class Code:
                 counter += 2
         bounds.append(len(script))
         code = []
-        i = 2
+        i = 2 if len(bounds) % 2 else 1
         while i < len(bounds):
             code.append((bounds[i - 1], bounds[i], script[bounds[i - 1]:bounds[i]]))
             i += 2
@@ -27,7 +27,7 @@ class Code:
         self.comments = comments
         self.code = code
         self.string_comments = strings_comments
-        self.rawcode = "".join([x[2] for x in self.sections])
+        self.rawcode = "".join([x[2] for x in sorted(self.code+self.strings)])
 
     def getafter(self, ch: int):
         for strcom in self.string_comments:
@@ -49,10 +49,6 @@ class Code:
         while (x := ch - 1) or True:
             if rawcontent[ch] in ['.', ')', '"', '}'] and not commented:
                 return caller
-            elif rawcontent[ch] == '\n':
-                commented = True
-            elif rawcontent[ch] == '#':
-                commented = False
             else:
                 caller = rawcontent[ch] + caller
         raise Exception("something that shouldnt happen has happened")
@@ -76,9 +72,6 @@ def hascomment(s: str):
 
 
 def parser(script: str):
-    # step 1: separate comments
-    # step 2: separate strings
-    # step 3: actually parse and shit
     comments = []  # [(start, end, content)]
     strings = []
     commented = False
@@ -111,67 +104,77 @@ def parser(script: str):
     #        we don't need to check if it's valid syntax or not so we dont need to know the type of object that's nice
     #        this can actually be chained which is pretty annoying
     #    operators? i dont think it actually matters to us
+    #    *statements* | a
+    #        these can be delimited by anything that isn't a valid identifier.
+    #        fuck me clockwise
     #
     # other notes:
-    #   whitespace is only required between valid identifiers/numbers and between the minus operator and rvalue
-    #   or the newline at the end of a comment thus it cannot reliably be used to separate statements
+    #   we minify the script a little before parsing, so there is no unnecessary whitespace or comments
     #   we are assuming the input script is valid syntax
 
     userobjects = {}
     usages = {}
+    hexxed = False
     ismember = False
-    for item in script.code:
-        sec = item[2]
-        start = len(sec) + 1
-        for ch in range(len(sec)):
-            if isidentifier(sec[ch]):
-                if start > ch:
-                    start = ch
-                else:
-                    pass
-            elif sec[ch] == '=':
-                identifier = sec[start:ch]
-                if identifier in userobjects:
-                    usages[identifier].append(start+item[0])  # it's been declared before, so this is a usage
-                else:
-                    isfunc = script.nextch(ch + item[0], False) == '{'
+    quoted = False
+    strscript = script.rawcode
+    start = len(strscript) + 1
+    for ch in range(len(strscript)):
+        if (strscript[ch-1] == '0' and strscript[ch] == 'x') and not quoted:
+            hexxed = True
+        elif isidentifier(strscript[ch]) and not (hexxed or quoted):
+            if start > ch:
+                start = ch
+            else:
+                pass
+        elif hexxed and strscript[ch].upper() not in "0123456789ABCDEF":
+            hexxed = False
+        elif strscript[ch] == '"':
+            quoted = not quoted
+        else:
+            if start != len(strscript)+1:  # if we actually had an identifier before this char
+                identifier = strscript[start:ch]
+                if identifier in usages:
+                    usages[identifier].append(start)
+                elif strscript[ch] == '=' and strscript[ch+1] != '=':
+                    isfunc = script.nextch(ch, False) == '{'
                     userobjects[identifier] = "func" if isfunc else "var"
                     usages[identifier] = []  # declaration is not a usage
-                start = len(sec) + 1
-            elif sec[ch] == '.':
+                elif not ismember:  # not an assignment (or member) but also haven't seen this name before
+                    usages[identifier] = [start]
+            if strscript[ch] == '.':
                 if ismember:  # we check if there's a . after a ), if there is we know that there's nothing to do here
                     continue
-                x = ch+item[0]
-                while prev := script.nextch(x, True):
-                    if prev == '.':
-                        break
-                    elif not isidentifier(prev):
-                        usages[sec[start:ch]].append(start+item[0])
-                        break
-                    x -= 1
+                # x = ch
+                # while prev := script.nextch(x, True):
+                #     if prev == '.':
+                #         break
+                #     elif not isidentifier(prev):
+                #         usages[strscript[start:ch]].append(start)
+                #         break
+                #     x -= 1
                 ismember = True
-                start = len(sec) + 1
+                # start = len(strscript) + 1
                 # we don't really care about anything else
-            elif sec[ch] == '(':
+            elif strscript[ch] == '(':
                 if ismember:
-                    if "foreach" in sec[start:ch]:  # array.foreach takes a variable name as an arg (blame meme)
-                        name = script.getafter(ch+item[0])[2].replace('"', '')
+                    if "foreach" == strscript[start:ch]:  # array.foreach takes a variable name as an arg (blame meme)
+                        name = script.getafter(ch)[2].replace('"', '')
                         usages[name] = []
                         userobjects[name] = "var"
                     else:
                         pass
-                else:
-                    identifier = sec[start:ch]
-                    if identifier in usages:
-                        usages[identifier].append(start+item[0])
-                    else:
-                        usages[identifier] = [start+item[0]]  # this should only be happen for stdlib functions
-                start = len(sec) + 1
-            elif sec[ch] == ')':
-                if start != len(sec)+1 and not ismember:
-                    usages[sec[start:ch]].append(start+item[0])
-                ismember = script.nextch(ch+item[0], False) == '.'
-                start = len(sec) + 1
+                # else:
+                #     identifier = strscript[start:ch]
+                #     if identifier in usages:
+                #         usages[identifier].append(start)
+                #     else:
+                #         usages[identifier] = [start]  # this should only be happen for stdlib functions
+                # start = len(strscript) + 1
+            elif strscript[ch] == ')':
+                ismember = script.nextch(ch, False) == '.'
+                # start = len(strscript) + 1
+            start = len(strscript) + 1
 
     return minify(script, userobjects, usages)
 
@@ -182,6 +185,7 @@ def minify(script: Code, userobjects, usages):
     # equals and the whitespace needed for a definition
     # obviously for a rename you're already defining it so it's just the difference between lengths multiplied by uses
     short_idents = [x for x in (ascii_letters+'_')] + [x[0]+x[1] for x in itertools.permutations(ascii_letters+'_', 2)]
+    short_idents.pop(short_idents.index("if"))
     for uo in userobjects:
         otype = userobjects[uo]
         uses = len(usages[uo])
@@ -195,9 +199,10 @@ def minify(script: Code, userobjects, usages):
             for i in candidates:
                 if i not in userobjects:
                     minName = i
+                    userobjects[minName] = "TRN"
             if not minName:
                 print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but no available "
-                      f"names found (would save {uses*len(uo)-1}bytes)")
+                      f"names found (would save {uses*len(uo)-1} bytes)")
                 continue
                 # we assume that nobody is insane enough to exhaust all *2,756* 2 character names,
                 # instead that uo is len 1 and all the 1 character names are in use
@@ -207,7 +212,7 @@ def minify(script: Code, userobjects, usages):
                 continue
             else:
                 print(f"Renaming {'Function' if otype == 'func' else 'Variable'} {uo} to {minName} "
-                      f"(saving {uses*(len(uo)-len(minName))}bytes)")
+                      f"(saving {uses*(len(uo)-len(minName))} bytes)")
                 # todo: actually do that
     for func in usages:
         candidates = short_idents
@@ -222,16 +227,19 @@ def minify(script: Code, userobjects, usages):
         for i in candidates:
             if i not in userobjects:
                 minName = i
+                userobjects[minName] = "TRP"
         if not minName:
             print(f"Standard library function {func} could be aliased but no available names found")
         else:
             if not savings:
                 savings = uses*len(func) - (len(func)+len(minName)+2)
             if savings <= 0 or not auto_replace:
-                print(f"Not aliasing standard library function {func} (would save {savings}bytes)")
+                print(f"Not aliasing standard library function {func} (would save {savings} bytes)")
             else:
-                print(f"Aliasing standard library function {func} to {minName} (saving {savings}bytes)")
+                print(f"Aliasing standard library function {func} to {minName} (saving {savings} bytes)")
                 # todo: actually do that part 2
+
+    return script.rawcode
 
 
 def preminify(script: str):
