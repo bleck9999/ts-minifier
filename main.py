@@ -32,7 +32,7 @@ class Code:
         self.sections = sorted(strings_comments + code)
         self.strings = strings
         self.comments = comments
-        self.code = code
+        self.code = [x[2].replace('\n', ' ') for x in code]
         self.string_comments = strings_comments
 
     def getafter(self, ch: int):
@@ -50,12 +50,27 @@ class Code:
             else:
                 x += 1
 
-            if rawcontent[x] not in [' ', '\n'] and not commented:
+            if rawcontent[x] != ' ' and not commented:
                 return rawcontent[x]
-            elif rawcontent[x] == '#':
+            elif rawcontent[x] == '#' and ((commented and reverse) or (not commented and not reverse)):
+                commented = not commented
+            elif rawcontent[x] == '\n' and ((commented and not reverse) or (not commented and reverse)):
+                commented = not commented
+
+    def calling(self, ch: int):
+        rawcontent = "".join([x[2] for x in self.sections])
+        caller = ""
+        commented = False
+        while x := ch-1 or True:
+            if rawcontent[ch] in ['.', ')', '"', '}'] and not commented:
+                return caller
+            elif rawcontent[ch] == '\n':
                 commented = True
-            elif rawcontent[x] == '\n' and commented:
+            elif rawcontent[ch] == '#':
                 commented = False
+            else:
+                caller = rawcontent[ch] + caller
+        raise Exception("something that shouldnt happen has happened")
 
 
 def isidentifier(s: str):
@@ -115,6 +130,7 @@ def parser(script: str):
     # other notes:
     #   whitespace is only required between valid identifiers/numbers and between the minus operator and rvalue
     #   or the newline at the end of a comment thus it cannot reliably be used to separate statements
+    #   we are assuming the input script is valid syntax
 
     userobjects = []
     usages = {}
@@ -123,7 +139,7 @@ def parser(script: str):
         sec = item[2]
         start = len(sec)+1
         for ch in range(len(sec)):
-            if isidentifier(sec[ch]) and start > ch and not ismember:
+            if isidentifier(sec[ch]) and start > ch:
                 start = ch
             elif sec[ch] == '=':
                 identifier = sec[start:ch]
@@ -136,8 +152,21 @@ def parser(script: str):
                     start = len(sec)+1
             elif sec[ch] == '.':
                 ismember = True
-
-
+                if script.nextch(ch+item[0], True) != ')':  # if we aren't in a chain
+                    usages[sec[start:ch]] += 1
+                    start = len(sec)+1
+                # we don't really care about anything else
+            elif sec[ch] == '(':
+                if ismember:
+                    pass
+                else:
+                    identifier = sec[start:ch]
+                    if identifier in usages:
+                        usages[identifier] += 1
+                    else:
+                        usages[identifier] = 1  # this should only be happen for stdlib functions
+            elif sec[ch] == ')':
+                ismember = False
 
 
 def minify(script: str):
