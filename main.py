@@ -328,8 +328,8 @@ if __name__ == '__main__':
     argparser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
                                                            "\ndefault: ./", default='./')
     argparser.add_argument("--auto-replace", action="store_true", default=False,
-                           help="""automatically replace reused functions and variables instead of just warning
-                           and attempt to generate shorter names for reused variables \ndefault: false""")
+                           help="automatically replace reused functions and variables instead of just warning\n"
+                           "and attempt to generate shorter names for reused variables \ndefault: false")
 
     args = argparser.parse_args()
     files = args.source
