@@ -139,22 +139,15 @@ def parser(script: str):
                 elif strscript[ch] == '=' and strscript[ch+1] != '=':
                     isfunc = script.nextch(ch, False) == '{'
                     userobjects[identifier] = "func" if isfunc else "var"
-                    usages[identifier] = []  # declaration is not a usage
+                    usages[identifier] = [start]  # declaration is a usage because i cant be arsed
                 elif not ismember:  # not an assignment (or member) but also haven't seen this name before
                     usages[identifier] = [start]
+                    if strscript[ch] != '(':  # stdlib only contains functions so we can use this hack to detect that
+                        userobjects[identifier] = "var"
             if strscript[ch] == '.':
                 if ismember:  # we check if there's a . after a ), if there is we know that there's nothing to do here
                     continue
-                # x = ch
-                # while prev := script.nextch(x, True):
-                #     if prev == '.':
-                #         break
-                #     elif not isidentifier(prev):
-                #         usages[strscript[start:ch]].append(start)
-                #         break
-                #     x -= 1
                 ismember = True
-                # start = len(strscript) + 1
                 # we don't really care about anything else
             elif strscript[ch] == '(':
                 if ismember:
@@ -164,16 +157,8 @@ def parser(script: str):
                         userobjects[name] = "var"
                     else:
                         pass
-                # else:
-                #     identifier = strscript[start:ch]
-                #     if identifier in usages:
-                #         usages[identifier].append(start)
-                #     else:
-                #         usages[identifier] = [start]  # this should only be happen for stdlib functions
-                # start = len(strscript) + 1
             elif strscript[ch] == ')':
                 ismember = script.nextch(ch, False) == '.'
-                # start = len(strscript) + 1
             start = len(strscript) + 1
 
     return minify(script, userobjects, usages)
@@ -186,35 +171,48 @@ def minify(script: Code, userobjects, usages):
     # obviously for a rename you're already defining it so it's just the difference between lengths multiplied by uses
     short_idents = [x for x in (ascii_letters+'_')] + [x[0]+x[1] for x in itertools.permutations(ascii_letters+'_', 2)]
     short_idents.pop(short_idents.index("if"))
-    for uo in userobjects:
+    mcode = script.rawcode
+    aliases = []
+    for uo in [x for x in userobjects]:
+        if userobjects[uo] == "TRN":
+            continue
+        tmpcode = ""
         otype = userobjects[uo]
         uses = len(usages[uo])
-        if uses == 0:
-            print(f"{'Function' if otype == 'func' else 'Variable'} {uo} assigned to but never used")
-        elif len(uo) > 1:
+        uolen = len(uo)
+        if uolen > 1:
             candidates = short_idents
             minName = ''
-            if len(uo) == 2:
+            if uolen == 2:
                 candidates = short_idents[:53]
             for i in candidates:
                 if i not in userobjects:
                     minName = i
                     userobjects[minName] = "TRN"
+                    break
             if not minName:
                 print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but no available "
-                      f"names found (would save {uses*len(uo)-1} bytes)")
+                      f"names found (would save {uses} bytes)")
                 continue
                 # we assume that nobody is insane enough to exhaust all *2,756* 2 character names,
-                # instead that uo is len 1 and all the 1 character names are in use
+                # instead that uo is len 2 and all the 1 character names are in use (because of that we dont multiply
+                # uses by anything
             if not auto_replace:
                 print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened ({uo}->{minName}, "
-                      f"would save {uses*(len(uo)-len(minName))} bytes")
+                      f"would save {uses*(uolen - len(minName))} bytes")
                 continue
             else:
                 print(f"Renaming {'Function' if otype == 'func' else 'Variable'} {uo} to {minName} "
-                      f"(saving {uses*(len(uo)-len(minName))} bytes)")
-                # todo: actually do that
+                      f"(saving {uses*(uolen - len(minName))} bytes)")
+                # rather than just blindly str.replace()ing we're going to actually use the character indices that we stored
+                diff = uolen - len(minName)
+                prev = 0
+                for bound in usages[uo]:
+                    tmpcode += mcode[prev:bound] + minName + ' '*diff
+                    prev = bound + diff + 1
+                mcode = tmpcode + mcode[bound+diff+1:]
     for func in usages:
+        tmpcode = ""
         candidates = short_idents
         minName = ''
         savings = 0
@@ -228,8 +226,11 @@ def minify(script: Code, userobjects, usages):
             if i not in userobjects:
                 minName = i
                 userobjects[minName] = "TRP"
-        if not minName:
-            print(f"Standard library function {func} could be aliased but no available names found")
+                break
+        # once again we assume it's only if that could trigger this message
+        if not minName and (uses - 4) > 0:
+            print(f"Standard library function {func} could be aliased but no available names found "
+                  f"(would save {uses-4} bytes)")
         else:
             if not savings:
                 savings = uses*len(func) - (len(func)+len(minName)+2)
@@ -237,12 +238,19 @@ def minify(script: Code, userobjects, usages):
                 print(f"Not aliasing standard library function {func} (would save {savings} bytes)")
             else:
                 print(f"Aliasing standard library function {func} to {minName} (saving {savings} bytes)")
-                # todo: actually do that part 2
+                diff = len(func) - len(minName)
+                prev = 0
+                for bound in usages[func]:
+                    tmpcode += mcode[prev:bound] + minName + ' ' * diff
+                    prev = bound + diff + 1
+                mcode = tmpcode + mcode[bound + diff + 1:]
+                aliases.append(f"{minName}={func} ")
 
-    return script.rawcode
+    print("Stripping whitespace (pass 2)")
+    return whitespacent("".join(aliases)+mcode)
 
 
-def preminify(script: str):
+def whitespacent(script: str):
     requires = ""
     mcode = ""
     for line in script.split(sep='\n'):
@@ -279,6 +287,7 @@ def preminify(script: str):
 
             part += 1
 
+    mcode = " ".join(mcode.split())  # turn lots of whitespace into one whitespace with one easy trick!
     # tsv3 is still an absolute nightmare
     # so spaces have a couple edge cases
     # 1. the - operator which requires space between the right operand
@@ -291,10 +300,8 @@ def preminify(script: str):
     newline = list(mcode)
     while index < (len(mcode) - 3):
         sec = mcode[index:index + 3]
-        if not inquote and sec[1] == '"':
-            inquote = True
-        elif inquote and sec[1] == '"':
-            inquote = False
+        if sec[1] == '"':
+            inquote = not inquote
         if (sec[1] == ' ') and not inquote:
             if (isidentifier(sec[0]) or sec[0].isnumeric()) and (isidentifier(sec[2]) or sec[2].isnumeric()):
                 pass
@@ -326,7 +333,8 @@ if __name__ == '__main__':
     for file in files:
         print(f"Minifying {file}")
         with open(file, 'r') as f:
-            r = parser(preminify(f.read()))
+            print("Stripping whitespace (pass 1)")
+            r = parser(whitespacent(f.read()))
         file = file.split(sep='.')[0].split(sep='/')[-1]
         if dest != '.':
             f = open(f"{dest}/{file}.te", 'w')
