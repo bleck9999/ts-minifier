@@ -131,7 +131,7 @@ def parser(script: str):
             hexxed = False
         elif strscript[ch] == '"':
             quoted = not quoted
-        else:
+        elif not quoted:
             if start != len(strscript)+1:  # if we actually had an identifier before this char
                 identifier = strscript[start:ch]
                 if identifier in usages:
@@ -160,6 +160,12 @@ def parser(script: str):
             elif strscript[ch] == ')':
                 ismember = script.nextch(ch, False) == '.'
             start = len(strscript) + 1
+
+    for var in [x for x in userobjects]:
+        if userobjects[var] != "var":
+            continue
+        elif (len(usages[var]) == 1) and (strscript[usages[var][0]-1] == '='):  # if it's an alias
+            userobjects.pop(var)
 
     return minify(script, userobjects, usages)
 
