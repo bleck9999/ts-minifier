@@ -12,6 +12,52 @@ sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'm
 replace_functions = False
 
 
+class Code:
+    def __init__(self, strings, comments, script):
+        bounds = []
+        counter = 0
+        strings_comments = sorted(strings + comments)
+        for val in strings_comments:
+            if counter and (bounds[counter - 1] == val[0]):
+                bounds[counter - 1] = val[1]
+            else:
+                bounds += [val[0], val[1]]
+                counter += 2
+        bounds.append(len(script))
+        code = []
+        i = 2
+        while i < len(bounds):
+            code.append((bounds[i - 1], bounds[i], script[bounds[i - 1]:bounds[i]]))
+            i += 2
+        self.sections = sorted(strings_comments + code)
+        self.strings = strings
+        self.comments = comments
+        self.code = code
+        self.string_comments = strings_comments
+
+    def getafter(self, ch: int):
+        for strcom in self.string_comments:
+            if strcom[0] >= ch:
+                return strcom
+        return None
+
+    def nextch(self, ch: int, reverse: bool):
+        rawcontent = "".join([x[2] for x in self.sections])
+        commented = False
+        while x := ch or True:
+            if reverse:
+                x -= 1
+            else:
+                x += 1
+
+            if rawcontent[x] not in [' ', '\n'] and not commented:
+                return rawcontent[x]
+            elif rawcontent[x] == '#':
+                commented = True
+            elif rawcontent[x] == '\n' and commented:
+                commented = False
+
+
 def isidentifier(s: str):
     for c in s:
         if not ((ord(c) >= 97) and (ord(c) <= 122)) or (ord(c) == 95):
@@ -54,30 +100,45 @@ def parser(script: str):
                 strings.append((strstart, c+1, script[strstart:c+1]))
                 quoted = False
 
-    bounds = []
-    counter = 0
-    strings_comments = strings + comments
-    for val in sorted(strings_comments):
-        if counter and (bounds[counter-1] == val[0]):
-            bounds[counter-1] = val[1]
-        else:
-            bounds += [val[0], val[1]]
-            counter += 2
-    bounds.append(len(script))
-    code = []
-    i = 2
-    while i < len(bounds):
-        code.append(script[bounds[i - 1]:bounds[i]])
-        i += 2
+    script = Code(strings, comments, script)
 
-    # a note on the ordering of things
-    # we have two important lists, code and strings_comments
-    # reconstructing them is fairly simple:
-    # code[n]
-    # strings_comments[n][2]
-    # #                   ^ note this [2], this is because code is a list of str and not tuple(int, int, str)
-    # code[n+1]
-    # etc.
+    # guess i should do a breakdown of step 3
+    # we need to be able to read:
+    #    variable creation | a = 15, array.foreach("a")
+    #    defining a function | funcname = {function body}
+    #    calling a function | funcname(arguments) for stdlib functions, funcname(<optional> any valid ts) for user defined
+    #    member calling | object.member(possible args)
+    #        we don't need to check if it's valid syntax or not so we dont need to know the type of object that's nice
+    #        this can actually be chained which is pretty annoying
+    #    operators? i dont think it actually matters to us
+    #
+    # other notes:
+    #   whitespace is only required between valid identifiers/numbers and between the minus operator and rvalue
+    #   or the newline at the end of a comment thus it cannot reliably be used to separate statements
+
+    userobjects = []
+    usages = {}
+    ismember = False
+    for item in script.code:
+        sec = item[2]
+        start = len(sec)+1
+        for ch in range(len(sec)):
+            if isidentifier(sec[ch]) and start > ch and not ismember:
+                start = ch
+            elif sec[ch] == '=':
+                identifier = sec[start:ch]
+                if identifier in userobjects:
+                    usages[identifier] += 1  # it's been declared before, so this is a usage
+                else:
+                    isfunc = script.nextch(ch+item[0], False) == '{'
+                    userobjects.append((identifier, "func" if isfunc else "var"))
+                    usages[identifier] = 0   # declaration is not a usage
+                    start = len(sec)+1
+            elif sec[ch] == '.':
+                ismember = True
+
+
+
 
 def minify(script: str):
     # currently ts does not seem to allow 's to mark a quote
