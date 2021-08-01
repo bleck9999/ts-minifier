@@ -6,9 +6,10 @@ sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'm
              'exit': "_q", 'break': "_b", 'dict': "_d", 'setpixel': "_y", 'readdir': "_i", 'copyfile': "_c",
              'mkdir': "_k", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u",
              'clear': "_x", 'timer': "_t", 'deldir': "_g", 'fsexists': "_f", 'delfile': "_z", "copydir": "c_",
-             "movefile": "_v", "payload": "_j", "readfile": "_o", "writefile": "_W", "setpixels": "_Y", "printpos": "_P",
-             "emmcread": "_E", "emmcwrite": "_F", "emummcread": "_R", "emummcwrite": "_S", "escapepath": "_X",
-             "combinepath": "_A", "cwd": "_D", "power": "_O", "fuse_patched": "_M", "fuse_hwtype": "_N"}
+             "movefile": "_v", "payload": "_j", "readfile": "_o", "writefile": "w_", "setpixels": "y_",
+             "printpos": "p_",
+             "emmcread": "e_", "emmcwrite": "f_", "emummcread": "r_", "emummcwrite": "s_", "escapepath": "x_",
+             "combinepath": "a_", "cwd": "d_", "power": "o_"}
 replace_functions = False
 
 
@@ -32,7 +33,7 @@ class Code:
         self.sections = sorted(strings_comments + code)
         self.strings = strings
         self.comments = comments
-        self.code = [x[2].replace('\n', ' ') for x in code]
+        self.code = code
         self.string_comments = strings_comments
 
     def getafter(self, ch: int):
@@ -43,25 +44,16 @@ class Code:
 
     def nextch(self, ch: int, reverse: bool):
         rawcontent = "".join([x[2] for x in self.sections])
-        commented = False
-        while x := ch or True:
-            if reverse:
-                x -= 1
-            else:
-                x += 1
-
-            if rawcontent[x] != ' ' and not commented:
-                return rawcontent[x]
-            elif rawcontent[x] == '#' and ((commented and reverse) or (not commented and not reverse)):
-                commented = not commented
-            elif rawcontent[x] == '\n' and ((commented and not reverse) or (not commented and reverse)):
-                commented = not commented
+        if ((ch+1 >= len(rawcontent)) and not reverse) or \
+                ((ch-1 < 0) and reverse):
+            return ''
+        return rawcontent[ch-1] if reverse else rawcontent[ch+1]
 
     def calling(self, ch: int):
         rawcontent = "".join([x[2] for x in self.sections])
         caller = ""
         commented = False
-        while x := ch-1 or True:
+        while (x := ch - 1) or True:
             if rawcontent[ch] in ['.', ')', '"', '}'] and not commented:
                 return caller
             elif rawcontent[ch] == '\n':
@@ -75,6 +67,7 @@ class Code:
 
 def isidentifier(s: str):
     for c in s:
+        c = c.lower()
         if not ((ord(c) >= 97) and (ord(c) <= 122)) or (ord(c) == 95):
             return False
     return True
@@ -105,14 +98,14 @@ def parser(script: str):
             commented = True
             commentstart = c
         elif (script[c] == '\n' and not quoted) and commented:
-            comments.append((commentstart, c+1, script[commentstart:c+1]))
+            comments.append((commentstart, c + 1, script[commentstart:c + 1]))
             commented = False
         elif script[c] == '"' and not commented:
             if not quoted:
                 strstart = c
                 quoted = True
             else:
-                strings.append((strstart, c+1, script[strstart:c+1]))
+                strings.append((strstart, c + 1, script[strstart:c + 1]))
                 quoted = False
 
     script = Code(strings, comments, script)
@@ -132,65 +125,66 @@ def parser(script: str):
     #   or the newline at the end of a comment thus it cannot reliably be used to separate statements
     #   we are assuming the input script is valid syntax
 
-    userobjects = []
+    userobjects = {}
     usages = {}
     ismember = False
     for item in script.code:
         sec = item[2]
-        start = len(sec)+1
+        start = len(sec) + 1
         for ch in range(len(sec)):
-            if isidentifier(sec[ch]) and start > ch:
-                start = ch
+            if isidentifier(sec[ch]):
+                if start > ch:
+                    start = ch
+                else:
+                    pass
             elif sec[ch] == '=':
                 identifier = sec[start:ch]
                 if identifier in userobjects:
                     usages[identifier] += 1  # it's been declared before, so this is a usage
                 else:
-                    isfunc = script.nextch(ch+item[0], False) == '{'
-                    userobjects.append((identifier, "func" if isfunc else "var"))
-                    usages[identifier] = 0   # declaration is not a usage
-                    start = len(sec)+1
+                    isfunc = script.nextch(ch + item[0], False) == '{'
+                    userobjects[identifier] = "func" if isfunc else "var"
+                    usages[identifier] = 0  # declaration is not a usage
+                start = len(sec) + 1
             elif sec[ch] == '.':
-                ismember = True
-                if script.nextch(ch+item[0], True) != ')':  # if we aren't in a chain
-                    usages[sec[start:ch]] += 1
-                    start = len(sec)+1
+                if ismember:  # we check if there's a . after a ), if there is we know that there's nothing to do here
+                    continue
+                x = ch+item[0]
+                while prev := script.nextch(x, True):
+                    if prev == '.':
+                        break
+                    elif not isidentifier(prev):
+                        usages[sec[start:ch]] += 1
+                        break
+                    x -= 1
+                start = len(sec) + 1
                 # we don't really care about anything else
             elif sec[ch] == '(':
                 if ismember:
-                    pass
+                    if sec[start:ch] == "foreach":  # array.foreach takes a variable name as an arg (blame meme)
+                        name = script.getafter(ch+item[0])[2]
+                        usages[name] = 0
+                        userobjects[name] = "var"
+                    else:
+                        pass
                 else:
                     identifier = sec[start:ch]
                     if identifier in usages:
                         usages[identifier] += 1
                     else:
                         usages[identifier] = 1  # this should only be happen for stdlib functions
+                start = len(sec) + 1
             elif sec[ch] == ')':
-                ismember = False
+                ismember = script.nextch(ch+item[0], False) == '.'
+                start = len(sec) + 1
+
+    print("")
 
 
-def minify(script: str):
-    # currently ts does not seem to allow 's to mark a quote
-    # (https://github.com/suchmememanyskill/TegraExplorer/blob/tsv3/source/script/parser.c#L173)
-    # im fine with that, it makes doing this a lot easier
-    # strings = script.split(sep='"')
-    str_reuse = {}
+def preminify(script: str):
     requires = ""
     mcode = ""
-    stl_counts = {}.fromkeys(sub_funcs, 0)
-    # while part < len(strings):
     for line in script.split(sep='\n'):
-        # maybe in future it'll shrink user defined names
-        # dont hold out hope for that because `a.files.foreach("b") {println(b)}` is valid syntax
-        # and i dont have the skill or patience to deal with that
-
-        # # in theory all the even numbered indexes should be outside quotes, so we ignore any parts with an odd index
-        # if part % 2 == 1:
-        #     if strings[part] not in str_reuse:
-        #         str_reuse[strings[part]] = 0
-        #     else:
-        #         str_reuse[strings[part]] += 1
-        #     mcode += f'"{strings[part]}"'
         start = hascomment(line)
         if start is None:
             start = -1
@@ -218,18 +212,11 @@ def minify(script: str):
             if part % 2 == 0:
                 if not line[part]:
                     break
-                for s in sub_funcs:
-                    stl_counts[s] += len(re.findall("(?<!\\.)%s\\(" % s, line[part]))
                 mcode += line[part].replace('\t', '') + ' '
             else:
-                if line[part] not in str_reuse:
-                    str_reuse[line[part]] = 0
-                else:
-                    str_reuse[line[part]] += 1
                 mcode += f'"{line[part]}"'
 
             part += 1
-
 
     # tsv3 is still an absolute nightmare
     # so spaces have a couple edge cases
@@ -248,7 +235,7 @@ def minify(script: str):
         elif inquote and sec[1] == '"':
             inquote = False
         if (sec[1] == ' ') and not inquote:
-            if wantsumspace(sec[0]) and wantsumspace(sec[2]):
+            if (isidentifier(sec[0]) or sec[0].isnumeric()) and (isidentifier(sec[2]) or sec[2].isnumeric()):
                 pass
             elif sec[0] == '-' and sec[2].isnumeric():
                 pass
@@ -257,42 +244,7 @@ def minify(script: str):
         index += 1
     mmcode += ''.join(newline).strip()
 
-    for func in sub_funcs:
-        # space saved here is given by n * (len(func) - len(min_func)) - (len(min_func)+1 + len(func))
-        # as such with one usage space is always lost (len(func)-2 is never > len(func)+3) so dont even try
-        if stl_counts[func] >= 2:
-            savings = stl_counts[func] * (len(func) - 2) - (len(func) + 3)
-            print(f"Replacing all {stl_counts[func]} usages of {func} would save {savings}byte{'s' if savings != 1 else ''}")
-            if (savings < 0) or not replace_functions:
-                print("Savings negative or automatic replacement disabled, continuing")
-                continue
-            func_min = sub_funcs[func]  # now here we have to assume nobody is using any of our substitute vars
-            # should be a pretty safe assumption but knowing for sure would require about the same amount of effort
-            # as it would to replace all user defined variables
-            ucode = ""  # this is rather hacky
-            sections = [0]
-            for m in re.finditer(r"(?<!\.)%s\(" % func, mmcode):
-                sections.append(m.span()[0])
-                sections.append(m.span()[1])
-            sections.append(len(mmcode))
-            i = 2       # change rather to very
-            while i < len(sections):
-                ucode += mmcode[sections[i-2]:sections[i-1]] + func_min + '('
-                i += 2
-            ucode += mmcode[sections[i-2]:]
-
-            ucode = f"{func_min}={func}\n" + ucode
-            mmcode = ucode
-            # a space isn't any shorter than \n so why not use \n
-
-    for string, count in str_reuse.items():
-        if count >= 2:
-            # we can't auto replace strings without a full parser
-            # unlike with the stdlib functions we cant make a lookup table ahead of time
-            # and generating shorter names on the fly sounds like an absolute nightmare no thanks
-            print(f'Warning: string "{string}" of len {len(string)} reused {count} times')
-
-    return requires + mmcode.strip()
+    return requires + mmcode.strip().replace('\n', ' ')
 
 
 if __name__ == '__main__':
@@ -300,7 +252,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.RawTextHelpFormatter)
     argparser.add_argument("source", type=str, nargs='+', help="source files to minify")
     argparser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
-                                                        "\ndefault: ./", default='./')
+                                                           "\ndefault: ./", default='./')
     argparser.add_argument("--replace-functions", action="store_true", default=False,
                            help="automatically replace reused functions instead of just warning\ndefault: false")
 
@@ -312,7 +264,7 @@ if __name__ == '__main__':
     for file in files:
         print(f"Minifying {file}")
         with open(file, 'r') as f:
-            r = parser(f.read())
+            r = parser(preminify(f.read()))
         file = file.split(sep='.')[0].split(sep='/')[-1]
         if dest != '.':
             f = open(f"{dest}/{file}.te", 'w')
