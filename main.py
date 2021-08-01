@@ -252,11 +252,48 @@ def minify(script: Code, userobjects, usages):
                 mcode = tmpcode + mcode[bound + diff + 1:]
                 aliases.append(f"{minName}={func} ")
 
-    print("Stripping whitespace (pass 2)")
+    print("Reintroducing REQUIREs")
+    mcode = "".join([x[2] for x in script.comments]) + mcode
+    str_reuse = {}
+    for string in script.strings:
+        if string[2] in str_reuse:
+            str_reuse[string[2]].append(string[0])
+        else:
+            str_reuse[string[2]] = [string[0]]
+    for string in str_reuse:
+        tmpcode = ""
+        candidates = short_idents
+        uses = len(str_reuse[string])
+        minName = ""
+        if uses > 1 and len(string) > 1:
+            if len(string) == 2:
+                candidates = short_idents[:53]
+            for i in candidates:
+                if i not in userobjects:
+                    minName = i
+                    userobjects[minName] = "TIV"
+                    break
+            # the quotation marks are included in string
+            savings = uses * len(string) - (len(string) + len(minName) + 2)
+            if savings <= 0 or not auto_replace:
+                print(f"Not introducing variable for string {string} reused {uses} times (would save {savings} bytes)")
+            else:
+                # "duplicated code fragment" do i look like i give a shit
+                print(f"Introducing variable {minName} with value {string} (saving {savings} bytes)")
+                diff = len(string) - len(minName)
+                prev = 0
+                for bound in str_reuse[string]:
+                    tmpcode += mcode[prev:bound] + minName + ' ' * diff
+                    prev = bound + diff + 1
+                mcode = tmpcode + mcode[bound + diff + 1:]
+                aliases.append(f"{minName}={string} ")
+
+    print("Stripping whitespace")
     return whitespacent("".join(aliases)+mcode)
 
 
 def whitespacent(script: str):
+    # also happens to remove unneeded comments and push REQUIREs to the top of the file
     requires = ""
     mcode = ""
     for line in script.split(sep='\n'):
@@ -337,9 +374,9 @@ if __name__ == '__main__':
     auto_replace = args.auto_replace if args.auto_replace is not None else False
 
     for file in files:
-        print(f"Minifying {file}")
+        print(f"\nMinifying {file}")
         with open(file, 'r') as f:
-            print("Stripping whitespace (pass 1)")
+            print("Stripping comments")
             r = parser(whitespacent(f.read()))
         file = file.split(sep='.')[0].split(sep='/')[-1]
         if dest != '.':
