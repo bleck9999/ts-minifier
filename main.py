@@ -1,16 +1,8 @@
 import argparse
-import re
+import itertools
+from string import ascii_letters
 
-# if is not included because it's already 2 characters
-sub_funcs = {'while': "_h", 'print': "_p", 'println': "_l", 'mountsys': "_s", 'mountemu': "_e", 'readsave': "_r",
-             'exit': "_q", 'break': "_b", 'dict': "_d", 'setpixel': "_y", 'readdir': "_i", 'copyfile': "_c",
-             'mkdir': "_k", 'ncatype': "_n", 'pause': "_w", 'color': "_a", 'menu': "__", 'emu': "_u",
-             'clear': "_x", 'timer': "_t", 'deldir': "_g", 'fsexists': "_f", 'delfile': "_z", "copydir": "c_",
-             "movefile": "_v", "payload": "_j", "readfile": "_o", "writefile": "w_", "setpixels": "y_",
-             "printpos": "p_",
-             "emmcread": "e_", "emmcwrite": "f_", "emummcread": "r_", "emummcwrite": "s_", "escapepath": "x_",
-             "combinepath": "a_", "cwd": "d_", "power": "o_"}
-replace_functions = False
+auto_replace = False
 
 
 class Code:
@@ -35,6 +27,7 @@ class Code:
         self.comments = comments
         self.code = code
         self.string_comments = strings_comments
+        self.rawcode = "".join([x[2] for x in self.sections])
 
     def getafter(self, ch: int):
         for strcom in self.string_comments:
@@ -43,14 +36,14 @@ class Code:
         return None
 
     def nextch(self, ch: int, reverse: bool):
-        rawcontent = "".join([x[2] for x in self.sections])
+        rawcontent = self.rawcode
         if ((ch+1 >= len(rawcontent)) and not reverse) or \
                 ((ch-1 < 0) and reverse):
             return ''
         return rawcontent[ch-1] if reverse else rawcontent[ch+1]
 
     def calling(self, ch: int):
-        rawcontent = "".join([x[2] for x in self.sections])
+        rawcontent = self.rawcode
         caller = ""
         commented = False
         while (x := ch - 1) or True:
@@ -67,8 +60,7 @@ class Code:
 
 def isidentifier(s: str):
     for c in s:
-        c = c.lower()
-        if not ((ord(c) >= 97) and (ord(c) <= 122)) or (ord(c) == 95):
+        if c not in (ascii_letters + '_'):
             return False
     return True
 
@@ -140,11 +132,11 @@ def parser(script: str):
             elif sec[ch] == '=':
                 identifier = sec[start:ch]
                 if identifier in userobjects:
-                    usages[identifier] += 1  # it's been declared before, so this is a usage
+                    usages[identifier].append(start+item[0])  # it's been declared before, so this is a usage
                 else:
                     isfunc = script.nextch(ch + item[0], False) == '{'
                     userobjects[identifier] = "func" if isfunc else "var"
-                    usages[identifier] = 0  # declaration is not a usage
+                    usages[identifier] = []  # declaration is not a usage
                 start = len(sec) + 1
             elif sec[ch] == '.':
                 if ismember:  # we check if there's a . after a ), if there is we know that there's nothing to do here
@@ -154,31 +146,92 @@ def parser(script: str):
                     if prev == '.':
                         break
                     elif not isidentifier(prev):
-                        usages[sec[start:ch]] += 1
+                        usages[sec[start:ch]].append(start+item[0])
                         break
                     x -= 1
+                ismember = True
                 start = len(sec) + 1
                 # we don't really care about anything else
             elif sec[ch] == '(':
                 if ismember:
-                    if sec[start:ch] == "foreach":  # array.foreach takes a variable name as an arg (blame meme)
-                        name = script.getafter(ch+item[0])[2]
-                        usages[name] = 0
+                    if "foreach" in sec[start:ch]:  # array.foreach takes a variable name as an arg (blame meme)
+                        name = script.getafter(ch+item[0])[2].replace('"', '')
+                        usages[name] = []
                         userobjects[name] = "var"
                     else:
                         pass
                 else:
                     identifier = sec[start:ch]
                     if identifier in usages:
-                        usages[identifier] += 1
+                        usages[identifier].append(start+item[0])
                     else:
-                        usages[identifier] = 1  # this should only be happen for stdlib functions
+                        usages[identifier] = [start+item[0]]  # this should only be happen for stdlib functions
                 start = len(sec) + 1
             elif sec[ch] == ')':
+                if start != len(sec)+1 and not ismember:
+                    usages[sec[start:ch]].append(start+item[0])
                 ismember = script.nextch(ch+item[0], False) == '.'
                 start = len(sec) + 1
 
-    print("")
+    return minify(script, userobjects, usages)
+
+
+def minify(script: Code, userobjects, usages):
+    # the space saved by an alias is the amount of characters currently used by calling the function (uses*len(func))
+    # minus the amount of characters it would take to define an alias (len(alias)+len(func)+2), with the 2 being the
+    # equals and the whitespace needed for a definition
+    # obviously for a rename you're already defining it so it's just the difference between lengths multiplied by uses
+    short_idents = [x for x in (ascii_letters+'_')] + [x[0]+x[1] for x in itertools.permutations(ascii_letters+'_', 2)]
+    for uo in userobjects:
+        otype = userobjects[uo]
+        uses = len(usages[uo])
+        if uses == 0:
+            print(f"{'Function' if otype == 'func' else 'Variable'} {uo} assigned to but never used")
+        elif len(uo) > 1:
+            candidates = short_idents
+            minName = ''
+            if len(uo) == 2:
+                candidates = short_idents[:53]
+            for i in candidates:
+                if i not in userobjects:
+                    minName = i
+            if not minName:
+                print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but no available "
+                      f"names found (would save {uses*len(uo)-1}bytes)")
+                continue
+                # we assume that nobody is insane enough to exhaust all *2,756* 2 character names,
+                # instead that uo is len 1 and all the 1 character names are in use
+            if not auto_replace:
+                print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened ({uo}->{minName}, "
+                      f"would save {uses*(len(uo)-len(minName))} bytes")
+                continue
+            else:
+                print(f"Renaming {'Function' if otype == 'func' else 'Variable'} {uo} to {minName} "
+                      f"(saving {uses*(len(uo)-len(minName))}bytes)")
+                # todo: actually do that
+    for func in usages:
+        candidates = short_idents
+        minName = ''
+        savings = 0
+        uses = len(usages[func])
+        if func in userobjects or uses < 2:  # we only want stdlib functions used more than once
+            continue
+        elif func == "if":
+            candidates = short_idents[:53]
+            savings = uses * 2 - 5  # the 5 is how many characters an alias declaration would use (a=if<space>)
+        for i in candidates:
+            if i not in userobjects:
+                minName = i
+        if not minName:
+            print(f"Standard library function {func} could be aliased but no available names found")
+        else:
+            if not savings:
+                savings = uses*len(func) - (len(func)+len(minName)+2)
+            if savings <= 0 or not auto_replace:
+                print(f"Not aliasing standard library function {func} (would save {savings}bytes)")
+            else:
+                print(f"Aliasing standard library function {func} to {minName} (saving {savings}bytes)")
+                # todo: actually do that part 2
 
 
 def preminify(script: str):
@@ -253,13 +306,14 @@ if __name__ == '__main__':
     argparser.add_argument("source", type=str, nargs='+', help="source files to minify")
     argparser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
                                                            "\ndefault: ./", default='./')
-    argparser.add_argument("--replace-functions", action="store_true", default=False,
-                           help="automatically replace reused functions instead of just warning\ndefault: false")
+    argparser.add_argument("--auto-replace", action="store_true", default=False,
+                           help="""automatically replace reused functions and variables instead of just warning
+                           and attempt to generate shorter names for reused variables \ndefault: false""")
 
     args = argparser.parse_args()
     files = args.source
     dest = args.d[:-1] if args.d[-1] == '/' else args.d
-    replace_functions = args.replace_functions if args.replace_functions is not None else False
+    auto_replace = args.auto_replace if args.auto_replace is not None else False
 
     for file in files:
         print(f"Minifying {file}")
