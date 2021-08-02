@@ -35,7 +35,7 @@ class Code:
         self.rawcode = "".join([x[2] for x in sorted(self.code+self.strings)])
 
     def getafter(self, ch: int):
-        ch += self.comments[-1][1]
+        ch += self.comments[-1][1] if self.comments else 0
         for strcom in self.strings:
             if strcom[0] >= ch:
                 return strcom
@@ -275,7 +275,7 @@ def minify(script: Code, userobjects, usages):
                 diff = len(string) - len(minName)
                 prev = 0
                 for bound in str_reuse[string]:
-                    bound -= script.comments[-1][1]
+                    bound -= script.comments[-1][1] if script.comments else 0
                     tmpcode += mcode[prev:bound] + minName + ' ' * diff
                     prev = bound + diff + len(minName)
                 mcode = tmpcode + mcode[bound + diff + len(minName):]
