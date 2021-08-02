@@ -3,6 +3,11 @@ import itertools
 from string import ascii_letters
 
 auto_replace = False
+stdlib = ['if', 'while', 'print', 'println', 'mountsys', 'mountemu', 'readsave', 'exit', 'break', 'dict', 'setpixel',
+          'readdir', 'copyfile', 'mkdir', 'ncatype', 'pause', 'color', 'menu', 'emu', 'clear', 'timer', 'deldir',
+          'fsexists', 'delfile', 'copydir', 'movefile', 'payload', 'readfile', 'writefile', 'setpixels', 'printpos',
+          'emmcread', 'emmcwrite', 'emummcread', 'emummcwrite', 'escapepath', 'combinepath', 'cwd', 'power',
+          'fuse_patched', 'fuse_hwtype']
 
 
 class Code:
@@ -26,11 +31,12 @@ class Code:
         self.strings = strings
         self.comments = comments
         self.code = code
-        self.string_comments = strings_comments
+        # self.string_comments = strings_comments
         self.rawcode = "".join([x[2] for x in sorted(self.code+self.strings)])
 
     def getafter(self, ch: int):
-        for strcom in self.string_comments:
+        ch += self.comments[-1][1]
+        for strcom in self.strings:
             if strcom[0] >= ch:
                 return strcom
         return None
@@ -41,17 +47,6 @@ class Code:
                 ((ch-1 < 0) and reverse):
             return ''
         return rawcontent[ch-1] if reverse else rawcontent[ch+1]
-
-    def calling(self, ch: int):
-        rawcontent = self.rawcode
-        caller = ""
-        commented = False
-        while (x := ch - 1) or True:
-            if rawcontent[ch] in ['.', ')', '"', '}'] and not commented:
-                return caller
-            else:
-                caller = rawcontent[ch] + caller
-        raise Exception("something that shouldnt happen has happened")
 
 
 def isidentifier(s: str):
@@ -142,7 +137,9 @@ def parser(script: str):
                     usages[identifier] = [start]  # declaration is a usage because i cant be arsed
                 elif not ismember:  # not an assignment (or member) but also haven't seen this name before
                     usages[identifier] = [start]
-                    if strscript[ch] != '(':  # stdlib only contains functions so we can use this hack to detect that
+                    # fuck it we are using a fucking list of fucking stdlib functions i just fucking cant im adding tsv3
+                    # to the fucking esolangs wiki have a good day
+                    if identifier not in stdlib:
                         userobjects[identifier] = "var"
             if strscript[ch] == '.':
                 if ismember:  # we check if there's a . after a ), if there is we know that there's nothing to do here
@@ -153,19 +150,16 @@ def parser(script: str):
                 if ismember:
                     if "foreach" == strscript[start:ch]:  # array.foreach takes a variable name as an arg (blame meme)
                         name = script.getafter(ch)[2].replace('"', '')
-                        usages[name] = []
-                        userobjects[name] = "var"
+                        if name in userobjects:
+                            usages[name].append(start)
+                        else:
+                            usages[name] = []
+                            userobjects[name] = "var"
                     else:
                         pass
             elif strscript[ch] == ')':
                 ismember = script.nextch(ch, False) == '.'
             start = len(strscript) + 1
-
-    for var in [x for x in userobjects]:
-        if userobjects[var] != "var":
-            continue
-        elif (len(usages[var]) == 1) and (strscript[usages[var][0]-1] == '='):  # if it's an alias
-            userobjects.pop(var)
 
     return minify(script, userobjects, usages)
 
@@ -180,7 +174,7 @@ def minify(script: Code, userobjects, usages):
     mcode = script.rawcode
     aliases = []
     for uo in [x for x in userobjects]:
-        if userobjects[uo] == "TRN":
+        if userobjects[uo] not in ["var", "func"]:
             continue
         tmpcode = ""
         otype = userobjects[uo]
@@ -215,8 +209,8 @@ def minify(script: Code, userobjects, usages):
                 prev = 0
                 for bound in usages[uo]:
                     tmpcode += mcode[prev:bound] + minName + ' '*diff
-                    prev = bound + diff + 1
-                mcode = tmpcode + mcode[bound+diff+1:]
+                    prev = bound + diff + len(minName)
+                mcode = tmpcode + mcode[bound+diff+len(minName):]  # it actually cant be referenced before assignment but ok
     for func in usages:
         tmpcode = ""
         candidates = short_idents
@@ -233,7 +227,7 @@ def minify(script: Code, userobjects, usages):
                 minName = i
                 userobjects[minName] = "TRP"
                 break
-        # once again we assume it's only if that could trigger this message
+        # once again we assume it's only `if` that could trigger this message
         if not minName and (uses - 4) > 0:
             print(f"Standard library function {func} could be aliased but no available names found "
                   f"(would save {uses-4} bytes)")
@@ -248,12 +242,10 @@ def minify(script: Code, userobjects, usages):
                 prev = 0
                 for bound in usages[func]:
                     tmpcode += mcode[prev:bound] + minName + ' ' * diff
-                    prev = bound + diff + 1
-                mcode = tmpcode + mcode[bound + diff + 1:]
+                    prev = bound + diff + len(minName)
+                mcode = tmpcode + mcode[bound + diff + len(minName):]
                 aliases.append(f"{minName}={func} ")
 
-    print("Reintroducing REQUIREs")
-    mcode = "".join([x[2] for x in script.comments]) + mcode
     str_reuse = {}
     for string in script.strings:
         if string[2] in str_reuse:
@@ -283,13 +275,16 @@ def minify(script: Code, userobjects, usages):
                 diff = len(string) - len(minName)
                 prev = 0
                 for bound in str_reuse[string]:
+                    bound -= script.comments[-1][1]
                     tmpcode += mcode[prev:bound] + minName + ' ' * diff
-                    prev = bound + diff + 1
-                mcode = tmpcode + mcode[bound + diff + 1:]
+                    prev = bound + diff + len(minName)
+                mcode = tmpcode + mcode[bound + diff + len(minName):]
                 aliases.append(f"{minName}={string} ")
 
+    print("Reintroducing REQUIREs")
+    mcode = "".join([x[2] for x in script.comments]) + "".join(aliases) + mcode
     print("Stripping whitespace")
-    return whitespacent("".join(aliases)+mcode)
+    return whitespacent(mcode)
 
 
 def whitespacent(script: str):
@@ -316,8 +311,7 @@ def whitespacent(script: str):
         line = line.split(sep='"')
 
         if len(line) % 2 == 0:
-            print("You appear to have string literals spanning multiple lines. Please seek professional help")
-            raise Exception("Too much hatred")
+            raise Exception("Unmatched quote or hard newline in string")
         part = 0
         while part < len(line):
             # all the odd numbered indexes should be inside quotes
