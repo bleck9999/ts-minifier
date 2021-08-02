@@ -318,13 +318,13 @@ def whitespacent(script: str):
             if part % 2 == 0:
                 if not line[part]:
                     break
-                mcode += line[part].replace('\t', '') + ' '
+                # turn lots of whitespace into one whitespace with one easy trick!
+                mcode += ' '.join(line[part].split()) + ' '
             else:
                 mcode += f'"{line[part]}"'
 
             part += 1
 
-    mcode = " ".join(mcode.split())  # turn lots of whitespace into one whitespace with one easy trick!
     # tsv3 is still an absolute nightmare
     # so spaces have a couple edge cases
     # 1. the - operator which requires space between the right operand
