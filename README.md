@@ -7,6 +7,12 @@ currently the optimisations performed are:
 - detecting reused string literals
 - detecting (or automatically aliasing) reused standard library functions
 - detecting (or automatically renaming) long variable or user function names
+
+as a side note: i consider the automatic replacement *mostly* stable. 
+however, mostly is not always and tegrascript is a very cursed language so 
+if you do end up using it and experiencing issues i'd appreciate it if you either
+opened an issue on this repository with details of what went wrong or pinging me
+(bleck9999#9797) in [meme's server](https://discord.gg/nhvWK2Q)
 ```
 usage: main.py [-h] [-d [D]] [--auto-replace] source [source ...]
 
