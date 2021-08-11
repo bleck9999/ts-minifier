@@ -280,7 +280,7 @@ def minify(script: Code, userobjects, usages):
                     userobjects[minName] = "TIV"
                     break
             # the quotation marks are included in string
-            savings = uses * len(string) - (len(string) + len(minName) + 1)
+            savings = uses * len(string) - (len(string) + len(minName) + 2)
             if savings <= 0 or not auto_replace:
                 print(f"Not introducing variable for string {string} reused {uses} times (would save {savings} bytes)")
             else:
