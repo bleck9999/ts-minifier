@@ -155,7 +155,7 @@ def minify(script: Code, userobjects, usages):
     # equals and the whitespace needed for a definition
     #
     # obviously for a rename you're already defining it so it's just the difference between lengths multiplied by uses
-    short_idents = [x for x in (ascii_letters+'_')] + [x[0]+x[1] for x in itertools.permutations(ascii_letters+'_', 2)]
+    short_idents = [x for x in (ascii_letters+'_')] + [x[0]+x[1] for x in itertools.product(ascii_letters+'_', repeat=2)]
     short_idents.pop(short_idents.index("if"))
     mcode = script.rawcode
     aliases = []
@@ -180,7 +180,7 @@ def minify(script: Code, userobjects, usages):
                 print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but no available "
                       f"names found (would save {uses} bytes)")
                 continue
-                # we assume that nobody is insane enough to exhaust all *2,756* 2 character names,
+                # we assume that nobody is insane enough to exhaust all *2,808* 2 character names,
                 # instead that uo is len 2 and all the 1 character names are in use (because of that we dont multiply
                 # uses by anything as multiplying by a difference of 1 would be redundant)
             if not auto_replace:
