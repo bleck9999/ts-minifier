@@ -177,15 +177,15 @@ def minify(script: Code, userobjects, usages):
                     userobjects[minName] = "TRN"
                     break
             if not minName:
-                print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but no available "
-                      f"names found (would save {uses} bytes)")
+                print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but "
+                      f"no available names found (would save {uses} bytes)")
                 continue
                 # we assume that nobody is insane enough to exhaust all *2,808* 2 character names,
                 # instead that uo is len 2 and all the 1 character names are in use (because of that we dont multiply
                 # uses by anything as multiplying by a difference of 1 would be redundant)
             if not auto_replace:
                 print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened ({uo}->{minName}, "
-                      f"would save {uses*(uolen - len(minName))} bytes")
+                      f"would save {uses*(uolen - len(minName))} bytes)")
                 continue
             else:
                 print(f"Renaming {'Function' if otype == 'func' else 'Variable'} {uo} to {minName} "
