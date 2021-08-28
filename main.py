@@ -334,9 +334,7 @@ def whitespacent(script: str):
 
     # tsv3 is still an absolute nightmare
     # so spaces are required under two situations
-    # 1. the minus operator which requires space between the right operand
-    # yeah that's right only the right one
-    # thanks meme
+    # 1. the minus operator which requires space between the right operand but only if the right operand is a literal
     # 2. between 2 characters that are either valid identifiers (aA-zZ or _) or integers
     inquote = False
     mmcode = ""
@@ -349,7 +347,7 @@ def whitespacent(script: str):
         if (sec[1] == ' ') and not inquote:
             if (isidentifier(sec[0]) or sec[0].isnumeric()) and (isidentifier(sec[2]) or sec[2].isnumeric()):
                 pass
-            elif sec[0] == '-' and (isidentifier(sec[2]) or sec[2].isnumeric()):
+            elif sec[0] == '-' and sec[2].isnumeric():
                 pass
             else:
                 newline[index + 1] = ''
