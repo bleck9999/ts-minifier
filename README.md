@@ -4,7 +4,7 @@ mainly useful for embedding them at compile time into te
 currently the optimisations performed are:
 - removing excess whitespace
 - removing comments (except REQUIRE statements)
-- detecting reused string literals
+- detecting reused string literals (or automatically introducing a variable) 
 - detecting (or automatically aliasing) reused standard library functions
 - detecting (or automatically renaming) long variable or user function names
 
@@ -23,7 +23,8 @@ optional arguments:
   -h, --help      show this help message and exit
   -d [D]          destination folder for minified scripts
                   default: ./
-  --auto-replace  automatically replace reused functions and variables instead of just warning
+  --auto-replace  automatically replace reused functions, variables and strings instead of just warning
                   and attempt to generate shorter names for reused variables 
                   default: false
+  -v              prints even more information to the console than usual
 ```
