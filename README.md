@@ -4,7 +4,7 @@ mainly useful for embedding them at compile time into te
 currently the optimisations performed are:
 - removing excess whitespace
 - removing comments (except REQUIRE statements)
-- detecting reused string literals (or automatically introducing a variable) 
+- detecting reused string or integer literals (or automatically introducing a variable) 
 - detecting (or automatically aliasing) reused standard library functions
 - detecting (or automatically renaming) long variable or user function names
 

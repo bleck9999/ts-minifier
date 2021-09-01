@@ -1,6 +1,7 @@
 import argparse
 import itertools
-from string import ascii_letters
+import string
+from string import ascii_letters, digits, hexdigits
 
 auto_replace = False
 verbose = False
@@ -52,7 +53,7 @@ class Code:
 
 def isidentifier(s: str):
     for c in s:
-        if c not in (ascii_letters + '_'):
+        if c not in (ascii_letters + '_' + digits):
             return False
     return True
 
@@ -109,7 +110,7 @@ def parser(script: str):
                 start = ch
             else:
                 pass
-        elif hexxed and strscript[ch].upper() not in "0123456789ABCDEF":
+        elif hexxed and strscript[ch] not in hexdigits:
             hexxed = False
         elif strscript[ch] == '"':
             quoted = not quoted
@@ -118,11 +119,16 @@ def parser(script: str):
                 identifier = strscript[start:ch]
                 if identifier in usages:
                     usages[identifier].append(start)
+                elif identifier.isnumeric():  # numbers are legally valid identifiers because fuckyou
+                    usages[identifier] = [start]
+                    userobjects[identifier] = "INT"
+                elif identifier == "0x":
+                    pass
                 elif strscript[ch] == '=' and strscript[ch+1] != '=':
                     isfunc = script.nextch(ch, False) == '{'
                     userobjects[identifier] = "func" if isfunc else "var"
                     usages[identifier] = [start]  # declaration is a usage because i cant be arsed
-                elif not ismember:  # not an assignment (or member) but also haven't seen this name before
+                else:  # not an assignment (or member) but also haven't seen this name before
                     usages[identifier] = [start]
                     # fuck it we are using a fucking list of fucking stdlib functions i just fucking cant im adding tsv3
                     # to the fucking esolangs wiki have a good day
@@ -175,7 +181,6 @@ def minify(script: Code, userobjects, usages):
             for i in candidates:
                 if i not in userobjects:
                     minName = i
-                    userobjects[minName] = "TRN"
                     break
             if verbose and not minName:
                 print(f"{'Function' if otype == 'func' else 'Variable'} name {uo} could be shortened but "
@@ -189,8 +194,10 @@ def minify(script: Code, userobjects, usages):
                       f"would save {uses*(uolen - len(minName))} bytes)")
                 continue
             else:
-                print(f"Renaming {'Function' if otype == 'func' else 'Variable'} {uo} to {minName} "
-                      f"(saving {uses*(uolen - len(minName))} bytes)")
+                userobjects[minName] = "TRN"
+                if verbose:
+                    print(f"Renaming {'Function' if otype == 'func' else 'Variable'} {uo} to {minName} "
+                          f"(saving {uses*(uolen - len(minName))} bytes)")
                 diff = uolen - len(minName)
 
                 # the foreach syntax is literally the worst part of ts
@@ -227,19 +234,20 @@ def minify(script: Code, userobjects, usages):
         for i in candidates:
             if i not in userobjects:
                 minName = i
-                userobjects[minName] = "TRP"
                 break
         # once again we assume it's only `if` that could trigger this message
         # uses - 4 is the minimum amount of uses needed to save space, 1*(uses - 4) is the space it would save
-        if verbose and (not minName and (uses - 4) > 0):
-            print(f"Standard library function {func} could be aliased but no available names found "
-                  f"(would save {uses-4} bytes)")
+        if not minName and (uses - 4) > 0:
+            if verbose:
+                print(f"Standard library function {func} could be aliased but no available names found "
+                      f"(would save {uses-4} bytes)")
         else:
             if not savings:
                 savings = uses*len(func) - (len(func)+len(minName)+2)
             if (verbose and savings <= 0) or (not auto_replace and savings > 0):
                 print(f"Not aliasing standard library function {func} (would save {savings} bytes)")
             elif auto_replace and savings > 0:
+                userobjects[minName] = "TRP"
                 if verbose:
                     print(f"Aliasing standard library function {func} to {minName} (saving {savings} bytes)")
                 diff = len(func) - len(minName)
@@ -267,14 +275,20 @@ def minify(script: Code, userobjects, usages):
             for i in candidates:
                 if i not in userobjects:
                     minName = i
-                    userobjects[minName] = "TIV"
                     break
+            if not minName:
+                savings = len(string) * uses - (len(string) + 5)  # 5 comes from id="{string}"
+                if verbose:
+                    print(f"Could introduce variable for reused string {string} but no available names found "
+                          f"(would save {savings} bytes)")
+                continue
             # the quotation marks are included in string
             savings = uses * len(string) - (len(string) + len(minName) + 2)
             if (verbose and savings <= 0) or (not auto_replace and savings > 0):
                 print(f"Not introducing variable for string {string} reused {uses} times (would save {savings} bytes)")
             elif auto_replace and savings > 0:
                 # "duplicated code fragment" do i look like i give a shit
+                userobjects[minName] = "TIV"
                 if verbose:
                     print(f"Introducing variable {minName} with value {string} (saving {savings} bytes)")
                 diff = len(string) - len(minName)
@@ -287,6 +301,45 @@ def minify(script: Code, userobjects, usages):
                 aliases.append(f"{minName}={string}")
         elif verbose:
             print(f"Not introducing variable for string {string} (only used once)")
+
+    for uint in [x for x in userobjects]:
+        if userobjects[uint] != "INT" or len(uint) < 2:
+            continue
+        candidates = short_idents
+        uses = len(usages[uint])
+        uilen = len(uint)
+        minName = ""
+        tmpcode = ""
+        if uses > 1:
+            if uilen == 2:
+                candidates = short_idents[:53]
+            for i in candidates:
+                if i not in userobjects:
+                    minName = i
+                    break
+            if not minName:
+                # yet another case of "nobody could possibly use up all the 2 char names we hope"
+                savings = uilen * uses - (uilen + 4)  # 4 comes from id={uint}<whitespace>
+                if verbose:
+                    print(f"Could introduce variable for reused integer {uint} but no available names found "
+                          f"(would save {savings} bytes)")
+                continue
+            savings = uilen * uses - (uilen + len(minName) + 2)
+            if (verbose and savings <= 0) or (not auto_replace and savings > 0):
+                print(f"Not introducing variable for string {uint} reused {uses} times (would save {savings} bytes)")
+            elif auto_replace and savings > 0:
+                userobjects[minName] = "TIV"
+                if verbose:
+                    print(f"Introducing variable {minName} with value {uint} (saving {savings} bytes)")
+                diff = len(uint) - len(minName)
+                prev = 0
+                for bound in usages[uint]:
+                    tmpcode += mcode[prev:bound] + minName + ' ' * diff
+                    prev = bound + diff + len(minName)
+                mcode = tmpcode + mcode[bound + diff + len(minName):]
+                aliases.append(f"{minName}={uint} ")
+        elif verbose:
+            print(f"Not introducing variable for int {uint} (only used once)")
 
     print("Reintroducing REQUIREs")
     mcode = "".join([x[2] for x in script.comments]) + "".join(aliases) + mcode
