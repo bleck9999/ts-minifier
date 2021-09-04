@@ -16,19 +16,13 @@ class Code:
     def __init__(self, strings, comments, script):
         counter = 0
         strings_comments = sorted(strings + comments)
-        bounds = [0] if strings_comments[0][0] != 0 else []
-        for val in strings_comments:
-            if counter and (bounds[counter - 1] == val[0]):
-                bounds[counter - 1] = val[1]
-            else:
-                bounds += [val[0], val[1]]
-                counter += 2
-        bounds.append(len(script))
+
+        bound = 0
         code = []
-        i = 2 if len(bounds) % 2 else 1
-        while i < len(bounds):
-            code.append((bounds[i - 1], bounds[i], script[bounds[i - 1]:bounds[i]]))
-            i += 2
+        for strcom in strings_comments:
+            code.append((bound, strcom[0], script[bound:strcom[0]]))
+            bound = strcom[1]
+        code.append((bound, len(script), script[bound:]))
         self.sections = sorted(strings_comments + code)
         self.strings = strings
         self.comments = comments
@@ -54,6 +48,13 @@ class Code:
 def isidentifier(s: str):
     for c in s:
         if c not in (ascii_letters + '_' + digits):
+            return False
+    return True
+
+
+def iswhitespace(s: str):
+    for c in s:
+        if c not in (' ', '\t', '\n'):
             return False
     return True
 
@@ -100,7 +101,9 @@ def parser(script: str):
     hexxed = False
     ismember = False
     quoted = False
-    strscript = script.rawcode
+    strscript = script.rawcode + ' '
+    # the space will get removed after the second pass of whitespacent, but for now it prevents not detecting the
+    # last identifier in a script (eg if script.rawcode was "a=12" the 12 wouldn't be detected without the trailing ' ')
     start = len(strscript) + 1
     for ch in range(len(strscript)):
         if (strscript[ch-1] == '0' and strscript[ch] == 'x') and not quoted:
@@ -150,7 +153,7 @@ def parser(script: str):
                 ismember = script.nextch(ch, False) == '.'
             start = len(strscript) + 1
 
-    return minify(script, userobjects, usages)
+    return script, userobjects, usages
 
 
 def minify(script: Code, userobjects, usages):
@@ -376,10 +379,9 @@ def whitespacent(script: str):
         while part < len(line):
             # all the odd numbered indexes should be inside quotes
             if part % 2 == 0:
-                if not line[part]:
-                    break
-                # turn lots of whitespace into one whitespace with one easy trick!
-                mcode += ' '.join(line[part].split()) + ' '
+                if line[part] and not iswhitespace(line[part]):
+                    # turn lots of whitespace into one whitespace with one easy trick!
+                    mcode += ' '.join(line[part].split()) + ' '
             else:
                 mcode += f'"{line[part]}"'
 
@@ -432,7 +434,8 @@ if __name__ == '__main__':
         print(f"\nMinifying {file}")
         with open(file, 'r') as f:
             print("Stripping comments")
-            r = parser(whitespacent(f.read()))
+            res = parser(whitespacent(f.read()))
+            r = minify(res[0], res[1], res[2])
         file = file.split(sep='.')[0].split(sep='/')[-1]
         if dest != '.':
             f = open(f"{dest}/{file}.te", 'w')
