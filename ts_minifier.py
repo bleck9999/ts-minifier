@@ -118,8 +118,8 @@ def parser(script: str):
         elif strscript[ch] == '"':
             quoted = not quoted
         elif not quoted:
-            if start != len(strscript)+1:  # if we actually had an identifier before this char
-                identifier = strscript[start:ch]
+            if start != len(strscript)+1 and not ismember:  # if we actually had an identifier before this char
+                identifier = strscript[start:ch]            # and this isnt a member of anything
                 if identifier in usages:
                     usages[identifier].append(start)
                 elif identifier.isnumeric():  # numbers are legally valid identifiers because fuckyou
@@ -148,8 +148,9 @@ def parser(script: str):
                                 script.strings.pop(i)
                                 break
                     else:
+                        ismember = False
                         pass
-            elif strscript[ch] == ')':
+            elif strscript[ch] in ')}]':
                 ismember = script.nextch(ch, False) == '.'
             start = len(strscript) + 1
 
