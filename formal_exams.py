@@ -76,24 +76,28 @@ class Replacement(unittest.TestCase):
         parsed = ts_minifier.parser(r'print(1)print(2)print(3)print(4)')
         self.assertIn(("print", [0, 8, 16, 24]), parsed[2].items())
         smol = ts_minifier.minify(parsed[0], parsed[1], parsed[2])
+        smol = ts_minifier.whitespacent(smol)
         self.assertEqual("a=print a(1)a(2)a(3)a(4)", smol)
 
     def test_var_rename(self):
         parsed = ts_minifier.parser(r'loongname=12')
         self.assertEqual({"loongname": [0], "12": [10]}, parsed[2])
         smol = ts_minifier.minify(parsed[0], parsed[1], parsed[2])
+        smol = ts_minifier.whitespacent(smol)
         self.assertEqual("a=12", smol)
 
     def test_str_IV(self):
         parsed = ts_minifier.parser(r'print("hello world\n"+"hello world\n")')
         self.assertEqual([(6, 21, r'"hello world\n"'), (22, 37, r'"hello world\n"')], parsed[0].strings)
         smol = ts_minifier.minify(parsed[0], parsed[1], parsed[2])
+        smol = ts_minifier.whitespacent(smol)
         self.assertEqual(r'a="hello world\n"print(a+a)', smol)
 
     def test_int_IV(self):
         parsed = ts_minifier.parser(r'print(250+250+250+250)')
         self.assertEqual({"print": [0], "250": [6, 10, 14, 18]}, parsed[2])
         smol = ts_minifier.minify(parsed[0], parsed[1], parsed[2])
+        smol = ts_minifier.whitespacent(smol)
         self.assertEqual(r'a=250 print(a+a+a+a)', smol)
 
     def test_stdlib_var_result(self):
@@ -104,6 +108,7 @@ class Replacement(unittest.TestCase):
             with self.subTest(script=script):
                 parsed = ts_minifier.parser(script[0])
                 smol = ts_minifier.minify(parsed[0], parsed[1], parsed[2])
+                smol = ts_minifier.whitespacent(smol)
                 self.assertEqual(script[1], smol)
 
     # making this work without making stdlib_var_result fail is the real issue here
@@ -111,6 +116,7 @@ class Replacement(unittest.TestCase):
     def test_user_member_var(self):
         parsed = ts_minifier.parser(r'a=dict()a.othername=3')
         smol = ts_minifier.minify(parsed[0], parsed[1], parsed[2])
+        smol = ts_minifier.whitespacent(smol)
         self.assertEqual(r'a=dict()a.b=3', smol)
 
 
