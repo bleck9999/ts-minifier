@@ -417,7 +417,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.RawTextHelpFormatter)
     argparser.add_argument("source", type=str, nargs='+', help="source files to minify")
     argparser.add_argument("-d", type=str, nargs='?', help="destination folder for minified scripts"
-                                                           "\ndefault: ./", default='./')
+                                                           "\ndefault: .", default='.')
     argparser.add_argument("--auto-replace", action="store_true", default=False,
                            help="automatically replace reused functions, variables and strings instead of just warning\n"
                                 "and attempt to generate shorter names for reused variables \ndefault: false")
@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
     args = argparser.parse_args()
     files = args.source
-    dest = args.d[:-1] if args.d[-1] in '/\\' else args.d
+    dest = args.d
     auto_replace = args.auto_replace
     verbose = "INFO" if args.v else "WARNING"
     logging.basicConfig(level=verbose, format="{message}", style='{')
@@ -443,11 +443,12 @@ if __name__ == '__main__':
             r = minify(r[0], r[1], r[2])
             logging.info("Stripping whitespace (pass 2)")
             r = whitespacent(r)
-        file = file.split(sep='.')[0].split(sep='/')[-1]
-        if path.exists(f"{dest}/{file}.te"):
-            f = open(f"{dest}/{file}_min.te", 'w')
+        file = path.splitext(path.basename(file))[0]
+        if path.exists(path.join(dest, f"{file}.te")):
+            f = open(path.join(dest, f"{file}_min.te"), 'w')
         else:
-            f = open(f"{dest}/{file}.te", 'w')
+            f = open(path.join(dest, f"{file}.te"), 'w')
         logging.info(f"Writing to {f.name}")
         f.write(r)
         print("Done!")
+        f.close()
