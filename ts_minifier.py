@@ -10,7 +10,7 @@ stdlib = ['if', 'while', 'print', 'println', 'mountsys', 'mountemu', 'readsave',
           'readdir', 'copyfile', 'mkdir', 'ncatype', 'pause', 'color', 'menu', 'emu', 'clear', 'timer', 'deldir',
           'fsexists', 'delfile', 'copydir', 'movefile', 'payload', 'readfile', 'writefile', 'setpixels', 'printpos',
           'emmcread', 'emmcwrite', 'emummcread', 'emummcwrite', 'escapepath', 'combinepath', 'cwd', 'power',
-          'fuse_patched', 'fuse_hwtype']
+          'fuse_patched', 'fuse_hwtype', 'hidread']
 
 
 class Code:
