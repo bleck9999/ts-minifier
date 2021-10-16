@@ -27,4 +27,6 @@ optional arguments:
                   and attempt to generate shorter names for reused variables 
                   default: false
   -v              prints even more information to the console than usual
+  --such-meme     replaces destination file if it already exists 
+                  default: false
 ```
