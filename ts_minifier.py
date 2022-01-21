@@ -149,12 +149,12 @@ def minify(script: Code, userobjects, usages):
     # minus the amount of characters it would take to define an alias (len(alias)+len(func)+2), with the 2 being for the
     # equals and the whitespace needed for a definition
     # the same principle also applies to introducing a variable for string literals, though since a literal requires
-    # having "s around it then it's uses*(len(str)+2) - (len(minName)+len(str)+4)
+    # having "s around it then it's uses*(len(str)+2) - (len(minName)+len(str)+4) instead
     #                                                                          ^ 2 for = and whitespace, 2 for ""
     #
     # obviously for a rename you're already defining it so it's just the difference between lengths multiplied by uses
-    short_idents = [x for x in (ascii_letters + '_')] + [x[0] + x[1] for x in
-                                                         itertools.product(ascii_letters + '_', repeat=2)]
+    short_idents = [x for x in (ascii_letters + '_')] + \
+                   [x[0] + x[1] for x in itertools.product(ascii_letters + '_', repeat=2)]
     short_idents.pop(short_idents.index("if"))
     mcode = script.rawcode
     aliases = []
@@ -337,13 +337,13 @@ def minify(script: Code, userobjects, usages):
                     mcode = tmpcode + mcode[bound + diff + len(minName):]
                     aliases.append(f"{minName}={uint} ")
                 else:
-                    logging.warning(f"Not introducing variable for string {uint} reused {uses} times "
+                    logging.warning(f"Not introducing variable for integer {uint} reused {uses} times "
                                     f"(would save {savings} bytes)")
             else:
-                logging.info(f"Not introducing variable for string {uint} reused {uses} times "
+                logging.info(f"Not introducing variable for integer {uint} reused {uses} times "
                              f"(would save {savings} bytes)")
         else:
-            logging.info(f"Not introducing variable for int {uint} (only used once)")
+            logging.info(f"Not introducing variable for integer {uint} (only used once)")
 
     logging.info("Reintroducing REQUIREs")
     mcode = "".join([x[2] for x in script.comments]) + "".join(aliases) + mcode
