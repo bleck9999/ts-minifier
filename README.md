@@ -14,7 +14,7 @@ if you do end up using it and experiencing issues i'd appreciate it if you eithe
 opened an issue on this repository with details of what went wrong or pinging me
 (bleck9999#9797) in [meme's server](https://discord.gg/nhvWK2Q)
 ```
-usage: main.py [-h] [-d [D]] [--auto-replace] source [source ...]
+usage: ts_minifier.py [-h] [-d [D]] [--auto-replace] source [source ...]
 
 positional arguments:
   source          source files to minify
