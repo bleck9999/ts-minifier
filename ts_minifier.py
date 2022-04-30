@@ -263,6 +263,10 @@ def minify(script: Code, userobjects, usages):
     logging.info("Introducing variables for reused literals" if auto_replace else
                  "Checking for reused literals")
     for string in str_reuse:
+        if string == '"BYTE[]"':
+            # the type specifier for byte arrays is special because it has to be a literal
+            # if it's a variable then it tries to treat it as a string array then shits the bed if the other items are not strings
+            continue
         tmpcode = ""
         candidates = short_idents
         minName = ""
